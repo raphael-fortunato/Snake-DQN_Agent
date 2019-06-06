@@ -6,10 +6,11 @@ import numpy as np
 import tensorflow as tf
 from keras.callbacks import TensorBoard
 from keras.optimizers import Adam
-from keras.models import Sequential
+from keras.models import Sequential, load_model
 from keras.layers import Dense, Activation, Convolution2D, Flatten, Dropout, CuDNNLSTM, TimeDistributed
 import Snake
 from collections import deque
+import time as tm
 
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
@@ -21,18 +22,14 @@ session = tf.Session(config=config)
 
 class DQNAgent(object):
 
-    def __init__(self, episodes, win_threshold, epsilon_decay, epsilon=1.0, epsilon_min=.1, gamma =0.99, path = None, prints = False ):
-        self.game = Snake.Game(TRAINING)
-        self.episodes = episodes
-        self.win_threshold = win_threshold
+    def __init__(self, epsilon_decay, model = None,epsilon=1.0, epsilon_min=.1, gamma =0.9):
+        self.game = Snake.Game(True)
         self.epsilon = epsilon
         self.epsilon_decay = epsilon_decay
         self.epsilon_min = epsilon_min
-        self.gamma = gamma
-        self.path = path                     
-        self.prints = prints                 
-        self.model = self.build_model()
-        self.memory = deque(maxlen=1000000)
+        self.gamma = gamma             
+        self.model = self.build_model() if model == None else model
+        self.memory = deque(maxlen=10000)
 
     def build_model(self):
         model = Sequential()
@@ -75,21 +72,20 @@ class DQNAgent(object):
     def remember(self, state, action, reward, next_state, done):      
         self.memory.append((state, action, reward, next_state, done))
 
-    def Train(self):
+    def Train(self, episode):
+        if(agent.epsilon > agent.epsilon_min):
+            agent.epsilon = -1.5 * (episode / EPISODE) + self.epsilon
         minibatch = random.sample(self.memory, BATCH_SIZE)
         for state, action, reward, next_state, done in minibatch:
-            #print(f"state :{state}, action: {action}, reward: {reward}, next_state: {next_state}, done: {done} ")
-            #print(f"state = {state}, action: {action}, state_n: {next_state}")
             target = reward
             if not done:
                 target = (reward + self.gamma * 
                             np.amax(self.model.predict(next_state)[0]))
             target_f = self.model.predict(state)
             target_f[0][action] = target
-            #print(f"target_f : {target_f[0][action]}")
             self.model.fit(state, target_f, epochs=1, verbose=0)
-        if self.epsilon > self.epsilon_min:
-            self.epsilon *= self.epsilon_decay
+        # if self.epsilon > self.epsilon_min:
+        #     self.epsilon *= self.epsilon_decay
 
 def DrawObjects(window, grid, size, row):
     distance = size // row
@@ -124,14 +120,10 @@ def KeyEvent():
 
             keys = pygame.key.get_pressed()
             for key in keys:
-                if keys[pygame.K_LEFT]:
-                    self.snake.MoveLeft()
-                elif keys[pygame.K_RIGHT]:
-                    self.snake.MoveRight()
-                elif keys[pygame.K_DOWN]:
-                    self.snake.MoveDown()
-                elif keys[pygame.K_UP]:
-                    self.snake.MoveUp()
+                if keys[pygame.K_s]:
+                    agent.model.save(f"Snake_model_manualsave_{tm.time()}" )
+                    break
+
 
 def Draw(window, clock, Grid):
     size = 800
@@ -144,13 +136,14 @@ def Draw(window, clock, Grid):
     pygame.display.update()
 
 TRAINING = True
-BATCH_SIZE = 32
+BATCH_SIZE = 8
 EPISODE =5000
 SCREEN = True
 
 if __name__ == '__main__':
     while True:
-        agent = DQNAgent(100, None, 0.999)
+        m = load_model("Snake_model_manualsave_Furtest_trained")
+        agent = DQNAgent(0.999, model = m, epsilon = 0.)
         if SCREEN:
             size = 800
             pygame.init()
@@ -165,25 +158,21 @@ if __name__ == '__main__':
             if SCREEN:
                 Draw(window, clock, state)
             state = state.reshape(-1,20,20,1)
-            agent.game.reward.clear()
             for time in range(500):
                 action = agent.action(state)
-                next_state = agent.game.nextstate(action)
+                next_state, reward, done = agent.game.nextstate(action)
                 if SCREEN:
                     Draw(window, clock, next_state)
                 next_state = next_state.reshape(-1,20,20,1)
-                reward = agent.game.reward[-1]
-                done = True if reward == -20 else False
-                #print(f"state :{pstate}, action: {action}, reward: {reward}, next_state: {pnext_state}, done: {done} ")
-                agent.remember(state,action,reward, next_state, done)
+                agent.remember(state, action, reward, next_state, done)
                 state = next_state
                 if done:
-                    print("episode: {}/{}, score: {}, total reward: {}, e: {:.2}"
-                        .format(episode, EPISODE, time, sum(agent.game.reward), agent.epsilon))
+                    print("episode: {}/{}, score: {},  e: {:.2}"
+                        .format(episode, EPISODE, time,  agent.epsilon))
                     break
                 if len(agent.memory) > BATCH_SIZE:
-                    agent.Train()
-            if(episode % 2000 == 0 or episode == 9999):
+                    agent.Train(episode)
+            if(episode % 200 == 0 or episode == 4999):
                 agent.model.save(f"Snake_model_{episode}" )
 
 
