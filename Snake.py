@@ -36,11 +36,9 @@ class Snake(object):
         self.color = color
         self.body = []
         self.InitSnake(3)
-        print(f"snake length start ={len(self.body)}")
         self.tail = cube(self.body[-1].x,self.body[-1].y +1)
         self.dx = 0
         self.dy = -1
-        print(f"snake length end ={len(self.body)}")
 
     def MoveRight(self):
         if self.dx == -1:
@@ -147,24 +145,14 @@ def IsWithin(value, min, max):
 class Game(object):
 
     def __init__(self, training):
-        global snake, food, rows, Training, window, reward
+        global snake, food, rows, Training, window
         if training: 
-            self.reward = []
             self.Training = training
             self.size = 800
             self.rows = 20
             self.window = None
             self.snake = Snake((0,255,0), 10,10)
             self.food = randomSnack(self.window,self.rows, self.snake)
-
-        else: 
-            self.Training = training
-            self.size = 800
-            self.rows = 20
-            self.window = pygame.display.set_mode((self.size, self.size))
-            self.snake = Snake((0,255,0), 10,10)
-            self.food = randomSnack(self.window,self.rows, self.snake)
-            self.nextstate(0)
 
     def resetfood(self):
         self.food = randomSnack(self.window, self.rows, self.snake)
@@ -198,7 +186,7 @@ class Game(object):
         newydist = (food[1] - new[1]) * (food[1] - new[1])
         new_dist = sqrt(newxdist + newydist)
 
-        return 1 if old_dist > new_dist else -1
+        return 1 if old_dist > new_dist else -.5
 
     def checkcollision(self, new_pos, old_pos, food): 
         for i in range(1, len(self.snake.body),1):
@@ -206,38 +194,19 @@ class Game(object):
                     print(f"Score: {len(self.snake.body) -3}")
                     #message_box("You lost!", "Play again..")
                     self.snake.reset(10,10)
-                    self.reward.append(-20)
-                    return
+                    return -20, True
         if(not IsWithin(self.snake.body[0].x, 0, self.rows -1) or not IsWithin(self.snake.body[0].y, 0, self.rows -1)):
             print(f"Score: {len(self.snake.body) -3}")
             #message_box("You lost!", "Play again..")
             self.snake.reset(10, 10)
-            self.reward.append(-20)
-            return
+            return -20, True
         elif(self.snake.body[0].x == self.food.x and self.snake.body[0].y == self.food.y):
             self.snake.addCube()
             self.food = randomSnack(self.window,self.rows,self.snake)
-            self.reward.append(20)
-            return
+            return 20 , False
         distance = self.CalcDistance(new_pos,old_pos,food)
-        self.reward.append(distance)
+        return distance , False
 
-
-    def KeyEvent(self):
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-
-            keys = pygame.key.get_pressed()
-            for key in keys:
-                if keys[pygame.K_LEFT]:
-                    self.snake.MoveLeft()
-                elif keys[pygame.K_RIGHT]:
-                    self.snake.MoveRight()
-                elif keys[pygame.K_DOWN]:
-                    self.snake.MoveDown()
-                elif keys[pygame.K_UP]:
-                    self.snake.MoveUp()
 
     def performrandomaction(self, rand):
             if(rand ==0):
@@ -258,19 +227,6 @@ class Game(object):
             self.snake.MoveSnake()
             grid = self.generateGrid()
             new_pos_head  = (self.snake.body[0].x, self.snake.body[0].y)
-            self.checkcollision(new_pos_head, old_pos_head, pos_f)
-            return grid
-        else:
-            done = False
-            while not done:
-                self.KeyEvent()
-                clock = pygame.time.Clock()
-                self.snake.MoveSnake()
-                self.checkcollision()
-                pygame.time.delay(42)
-                clock.tick(10)
-                DrawWindow(self.window, self.size, self.rows)
-                self.snake.Draw(self.window)
-                self.food.Draw(self.window)
-                pygame.display.update()
+            reward, done = self.checkcollision(new_pos_head, old_pos_head, pos_f)
+            return grid, reward, done
 
