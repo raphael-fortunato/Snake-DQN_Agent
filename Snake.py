@@ -8,7 +8,7 @@ import tensorflow as tf
 from keras.optimizers import Adam
 from keras.models import Sequential
 from keras.layers import Dense, Activation, Convolution2D, Flatten
-from math import sqrt
+from math import sqrt, cos, degrees
 
 
 class cube(object):
@@ -177,7 +177,32 @@ class Game(object):
         grid[self.food.x][self.food.y] = 3
         return grid
 
-    def CalcDistance(self, new, old, food):
+    def CalcDistance(self,a1,a2, b1, b2):
+        x_dist = (a1 - a2)**2
+        y_dist = (b1 -b2)**2
+        return sqrt(x_dist+ y_dist)
+
+    def MapValue(self, curmin,  curmax, tarmin,  tarmax, curval):
+        return tarmin + (tarmax - tarmin) * ((curval - curmin)/ (curmax - curmin))
+
+    def CalcAngle(self, dir, distC):
+        max_dist = self.CalcDistance(20,0,20,0)
+        if distC == max_dist:
+            return max_dist
+        elif distC == 0:
+            return 0
+
+        if dir[1] != 0:
+            distA = self.CalcDistance(self.snake.body[0].x,self.snake.body[0].x , self.snake.body[0].y, self.snake.body[0].x) 
+        elif dir[0] != 0:
+            distA = self.CalcDistance(self.snake.body[0].x, self.food.x, self.snake.body[0].y, self.snake.body[0].y)
+        angle = cos(distA/ distC)
+        degree = degrees(angle)
+        return self.MapValue(0, max_dist/2, 0, max_dist,((90 - degree) / 90)* distC)
+        
+                
+
+    def CalcDistancePos(self, new, old, food):
         oldxdist = (food[0] - old[0]) * (food[0] - old[0])
         oldydist = (food[1] - old[1]) * (food[1] - old[1])
         old_dist = sqrt(oldxdist + oldydist)
@@ -187,6 +212,37 @@ class Game(object):
         new_dist = sqrt(newxdist + newydist)
 
         return 1 if old_dist > new_dist else -.5
+
+    def CalcFeatures(self):
+        max_dist = self.CalcDistance(20,0,20,0)
+        wall_up = self.CalcDistance(self.snake.body[0].x, self.snake.body[0].x, self.snake.body[0].y, -1)
+        wall_down = self.CalcDistance(self.snake.body[0].x, self.snake.body[0].x, self.snake.body[0].y, 20)
+        wall_left = self.CalcDistance(self.snake.body[0].x, -1, self.snake.body[0].y, self.snake.body[0].y)
+        wall_right = self.CalcDistance(self.snake.body[0].x, 20, self.snake.body[0].y, self.snake.body[0].y)
+
+        food_up = max_dist if self.snake.body[0].y < self.food.y else self.CalcDistance(self.snake.body[0].x, self.food.x, self.snake.body[0].y, self.food.y)
+        food_down = max_dist if self.snake.body[0].y > self.food.y else self.CalcDistance(self.snake.body[0].x, self.food.x, self.snake.body[0].y, self.food.y)
+        food_left = max_dist if self.snake.body[0].x < self.food.x else self.CalcDistance(self.snake.body[0].x, self.food.x, self.snake.body[0].y, self.food.y)
+        food_right = max_dist if self.snake.body[0].x > self.food.x else self.CalcDistance(self.snake.body[0].x, self.food.x, self.snake.body[0].y, self.food.y)
+        #print(food_up, food_down, food_left, food_right)
+        food_up = self.CalcAngle((0,1), food_up)
+        food_down = self.CalcAngle((0,-1), food_down)
+        food_left = self.CalcAngle((1,0), food_left)
+        food_right = self.CalcAngle((-1,0), food_right)
+        #print(food_up, food_down, food_left, food_right)
+        body_up = max_dist if len(list(filter(lambda x: x.y < self.snake.body[0].y and x.x == self.snake.body[0].x, self.snake.body))) == 0 \
+                    else self.CalcDistance(self.snake.body[0].x, self.snake.body[0].x, self.snake.body[0].y,list(filter(lambda x: x.y < self.snake.body[0].y, self.snake.body))[0].y )
+        body_down = max_dist if len(list(filter(lambda x: x.y > self.snake.body[0].y and x.x == self.snake.body[0].x, self.snake.body))) == 0 \
+                    else self.CalcDistance(self.snake.body[0].x, self.snake.body[0].x, self.snake.body[0].y,list(filter(lambda x: x.y > self.snake.body[0].y, self.snake.body))[0].y )
+        body_left = max_dist if len(list(filter(lambda x: x.x < self.snake.body[0].x and x.y == self.snake.body[0].y, self.snake.body))) == 0 \
+                    else self.CalcDistance(self.snake.body[0].x, list(filter(lambda x: x.x < self.snake.body[0].x, self.snake.body))[0].x, self.snake.body[0].y, self.snake.body[0].y )
+        body_right = max_dist if len(list(filter(lambda x: x.x > self.snake.body[0].x and x.y == self.snake.body[0].y, self.snake.body))) == 0 \
+                    else self.CalcDistance(self.snake.body[0].x, list(filter(lambda x: x.x > self.snake.body[0].x, self.snake.body))[0].x, self.snake.body[0].y, self.snake.body[0].y )
+        features =  [wall_up, wall_down, wall_left, wall_right, food_up, food_down, food_left, food_right, body_up, body_down, body_left, body_right]
+        features = list(map(lambda x:self.MapValue(0,max_dist, 1, 0, x), features))
+        print(features)
+        features = np.array(features)
+        return features.reshape(12, 1)
 
     def checkcollision(self, new_pos, old_pos, food): 
         for i in range(1, len(self.snake.body),1):
@@ -204,7 +260,7 @@ class Game(object):
             self.snake.addCube()
             self.food = randomSnack(self.window,self.rows,self.snake)
             return 20 , False
-        distance = self.CalcDistance(new_pos,old_pos,food)
+        distance = self.CalcDistancePos(new_pos,old_pos,food)
         return distance , False
 
 
@@ -225,8 +281,9 @@ class Game(object):
             pos_f = (self.food.x, self.food.y)
             self.performrandomaction(action_index)
             self.snake.MoveSnake()
-            grid = self.generateGrid()
+            features = self.CalcFeatures()
             new_pos_head  = (self.snake.body[0].x, self.snake.body[0].y)
             reward, done = self.checkcollision(new_pos_head, old_pos_head, pos_f)
-            return grid, reward, done
+            
+            return features, reward, done
 

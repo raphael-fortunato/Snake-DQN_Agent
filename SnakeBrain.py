@@ -33,26 +33,18 @@ class DQNAgent(object):
 
     def build_model(self):
         model = Sequential()
-        model.add(Convolution2D(16, (3, 3),input_shape=(20,20,1) ))
+        model.add(Dense(12))
         model.add(Activation('relu'))
-        model.add(Convolution2D(32, (3, 3)))
+        model.add(Dense(512))
+        model.add(Activation('relu'))
+        # model.add(Convolution2D(16, (3, 3),input_shape=(20,20,1), padding= "same"))
+        # model.add(Activation('relu'))
+        # model.add(Convolution2D(32, (3, 3), padding= "same"))
+         
+        model.add(Dense(256))
         model.add(Activation('relu'))
         
-        # model.add(TimeDistributed(Flatten()))
-
-        # model.add(CuDNNLSTM(128, return_sequences = True))
-        # model.add(Dropout(.2))
-        # model.add(Activation("relu"))
-
-        # model.add(CuDNNLSTM(128,  return_sequences = False))
-        # model.add(Dropout(.2))
-        # model.add(Activation("relu"))
-
-        # model.add(Dense(1048))
-        # model.add(Activation('relu'))
-
-        model.add(Flatten())
-        model.add(Dense(256))
+        model.add(Dense(128))
         model.add(Activation('relu'))
 
         model.add(Dense(4))
@@ -60,7 +52,7 @@ class DQNAgent(object):
         adam= Adam(lr=0.001)
         model.compile(loss='mean_squared_error',
                         optimizer=adam)
-        print(model.summary())
+        #print(model.summary())
         return model
 
     def action(self, state):
@@ -74,7 +66,7 @@ class DQNAgent(object):
 
     def Train(self, episode):
         if(agent.epsilon > agent.epsilon_min):
-            agent.epsilon = -1.5 * (episode / EPISODE) + self.epsilon
+            agent.epsilon = -1.7 * (episode / EPISODE) + 1.
         minibatch = random.sample(self.memory, BATCH_SIZE)
         for state, action, reward, next_state, done in minibatch:
             target = reward
@@ -136,14 +128,15 @@ def Draw(window, clock, Grid):
     pygame.display.update()
 
 TRAINING = True
-BATCH_SIZE = 8
-EPISODE =5000
+BATCH_SIZE = 16
+EPISODE =200
 SCREEN = True
 
 if __name__ == '__main__':
     while True:
-        m = load_model("Snake_model_manualsave_Furtest_trained")
-        agent = DQNAgent(0.999, model = m, epsilon = 0.)
+        #m = load_model("Snake_model_1800_Dense")
+        m = None
+        agent = DQNAgent(0.999, model = m ,epsilon = 1.)
         if SCREEN:
             size = 800
             pygame.init()
@@ -154,16 +147,14 @@ if __name__ == '__main__':
 
         for episode in range(EPISODE):
             agent.game.resetfood()
-            state = agent.game.generateGrid()
+            state = agent.game.CalcFeatures()
             if SCREEN:
-                Draw(window, clock, state)
-            state = state.reshape(-1,20,20,1)
+                Draw(window, clock, agent.game.generateGrid())
             for time in range(500):
                 action = agent.action(state)
                 next_state, reward, done = agent.game.nextstate(action)
                 if SCREEN:
-                    Draw(window, clock, next_state)
-                next_state = next_state.reshape(-1,20,20,1)
+                    Draw(window, clock, agent.game.generateGrid())
                 agent.remember(state, action, reward, next_state, done)
                 state = next_state
                 if done:
@@ -172,8 +163,8 @@ if __name__ == '__main__':
                     break
                 if len(agent.memory) > BATCH_SIZE:
                     agent.Train(episode)
-            if(episode % 200 == 0 or episode == 4999):
-                agent.model.save(f"Snake_model_{episode}" )
+            if(episode % 200 == 0 or episode == 999):
+                agent.model.save(f"Snake_model_{episode}_Features" )
 
 
 
