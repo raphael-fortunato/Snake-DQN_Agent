@@ -204,7 +204,8 @@ class Game(object):
             self.snake.addCube()
             self.food = randomSnack(self.window,self.rows,self.snake)
             return 20 , False
-        distance = self.CalcDistance(new_pos,old_pos,food)
+        #distance = self.CalcDistance(new_pos,old_pos,food)
+        distance = 0
         return distance , False
 
 

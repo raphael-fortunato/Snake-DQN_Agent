@@ -22,7 +22,7 @@ session = tf.Session(config=config)
 
 class DQNAgent(object):
 
-    def __init__(self, epsilon_decay, model = None,epsilon=1.0, epsilon_min=.1, gamma =0.9):
+    def __init__(self, epsilon_decay, model = None,epsilon=1.0, epsilon_min=.1, gamma =0.8):
         self.game = Snake.Game(True)
         self.epsilon = epsilon
         self.epsilon_decay = epsilon_decay
@@ -33,10 +33,18 @@ class DQNAgent(object):
 
     def build_model(self):
         model = Sequential()
-        model.add(Convolution2D(16, (3, 3),input_shape=(20,20,1) ))
+        model.add(Dense(400))
         model.add(Activation('relu'))
-        model.add(Convolution2D(32, (3, 3)))
+
+        model.add(Dense(1024))
         model.add(Activation('relu'))
+
+        model.add(Dense(512))
+        model.add(Activation('relu'))
+        # model.add(Convolution2D(16, (3, 3),input_shape=(20,20,1) ))
+        # model.add(Activation('relu'))
+        # model.add(Convolution2D(32, (3, 3)))
+        # model.add(Activation('relu'))
         
         # model.add(TimeDistributed(Flatten()))
 
@@ -57,10 +65,9 @@ class DQNAgent(object):
 
         model.add(Dense(4))
         model.add(Activation('linear'))
-        adam= Adam(lr=0.001)
+        adam= Adam(lr=0.01)
         model.compile(loss='mean_squared_error',
                         optimizer=adam)
-        print(model.summary())
         return model
 
     def action(self, state):
@@ -74,7 +81,7 @@ class DQNAgent(object):
 
     def Train(self, episode):
         if(agent.epsilon > agent.epsilon_min):
-            agent.epsilon = -1.5 * (episode / EPISODE) + self.epsilon
+            agent.epsilon = -1.5 * (episode / EPISODE) + 1.
         minibatch = random.sample(self.memory, BATCH_SIZE)
         for state, action, reward, next_state, done in minibatch:
             target = reward
@@ -137,43 +144,44 @@ def Draw(window, clock, Grid):
 
 TRAINING = True
 BATCH_SIZE = 8
-EPISODE =5000
+EPISODE =1000
 SCREEN = True
 
 if __name__ == '__main__':
-    while True:
-        m = load_model("Snake_model_manualsave_Furtest_trained")
-        agent = DQNAgent(0.999, model = m, epsilon = 0.)
-        if SCREEN:
-            size = 800
-            pygame.init()
-            window = pygame.display.set_mode((size, size))
-            clock = pygame.time.Clock()
-        action_size = 4
-        done = False
+    #m = load_model("Snake_model_manualsave_Furtest_trained")
+    m = None
+    agent = DQNAgent(0.999, model = m, epsilon = 1.)
+    if SCREEN:
+        size = 800
+        pygame.init()
+        window = pygame.display.set_mode((size, size))
+        clock = pygame.time.Clock()
+    action_size = 4
+    done = False
 
-        for episode in range(EPISODE):
-            agent.game.resetfood()
-            state = agent.game.generateGrid()
+    for episode in range(EPISODE):
+        agent.game.resetfood()
+        state = agent.game.generateGrid()
+
+        if SCREEN:
+            Draw(window, clock, state)
+        state = state.reshape(20,20,1) 
+        for time in range(500):
+            action = agent.action(state)
+            next_state, reward, done = agent.game.nextstate(action)
             if SCREEN:
-                Draw(window, clock, state)
-            state = state.reshape(-1,20,20,1)
-            for time in range(500):
-                action = agent.action(state)
-                next_state, reward, done = agent.game.nextstate(action)
-                if SCREEN:
-                    Draw(window, clock, next_state)
-                next_state = next_state.reshape(-1,20,20,1)
-                agent.remember(state, action, reward, next_state, done)
-                state = next_state
-                if done:
-                    print("episode: {}/{}, score: {},  e: {:.2}"
-                        .format(episode, EPISODE, time,  agent.epsilon))
-                    break
-                if len(agent.memory) > BATCH_SIZE:
-                    agent.Train(episode)
-            if(episode % 200 == 0 or episode == 4999):
-                agent.model.save(f"Snake_model_{episode}" )
+                Draw(window, clock, next_state)
+            next_state = next_state.reshape(20,20,1)
+            agent.remember(state, action, reward, next_state, done)
+            state = next_state
+            if done:
+                print("episode: {}/{}, score: {},  e: {:.2}"
+                    .format(episode, EPISODE, time,  agent.epsilon))
+                break
+            if len(agent.memory) > BATCH_SIZE:
+                agent.Train(episode)
+        if(episode % 200 == 0 or episode == 999):
+            agent.model.save(f"Snake_model_{episode}_dense" )
 
 
 
