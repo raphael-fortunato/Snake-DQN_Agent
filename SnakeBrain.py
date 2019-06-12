@@ -12,6 +12,7 @@ import Snake
 from collections import deque
 import time as tm
 
+
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
 session = tf.Session(config=config)
@@ -22,45 +23,26 @@ session = tf.Session(config=config)
 
 class DQNAgent(object):
 
-    def __init__(self, epsilon_decay, model = None,epsilon=1.0, epsilon_min=.1, gamma =0.8):
+    def __init__(self, epsilon_decay, model = None,epsilon=1.0, epsilon_min=.1, gamma =0.99):
         self.game = Snake.Game(True)
         self.epsilon = epsilon
         self.epsilon_decay = epsilon_decay
         self.epsilon_min = epsilon_min
         self.gamma = gamma             
         self.model = self.build_model() if model == None else model
-        self.memory = deque(maxlen=10000)
+        self.memory1 = deque(maxlen=500000)
+        self.memory2 = deque(maxlen = 500000)
+        self.eta = .9
+        self.eta_min = .5
+
 
     def build_model(self):
         model = Sequential()
+        model.add(Flatten())
         model.add(Dense(400))
         model.add(Activation('relu'))
 
-        model.add(Dense(1024))
-        model.add(Activation('relu'))
-
         model.add(Dense(512))
-        model.add(Activation('relu'))
-        # model.add(Convolution2D(16, (3, 3),input_shape=(20,20,1) ))
-        # model.add(Activation('relu'))
-        # model.add(Convolution2D(32, (3, 3)))
-        # model.add(Activation('relu'))
-        
-        # model.add(TimeDistributed(Flatten()))
-
-        # model.add(CuDNNLSTM(128, return_sequences = True))
-        # model.add(Dropout(.2))
-        # model.add(Activation("relu"))
-
-        # model.add(CuDNNLSTM(128,  return_sequences = False))
-        # model.add(Dropout(.2))
-        # model.add(Activation("relu"))
-
-        # model.add(Dense(1048))
-        # model.add(Activation('relu'))
-
-        model.add(Flatten())
-        model.add(Dense(256))
         model.add(Activation('relu'))
 
         model.add(Dense(4))
@@ -76,13 +58,18 @@ class DQNAgent(object):
         else: 
             return np.argmax(self.model.predict(state)[0])
 
-    def remember(self, state, action, reward, next_state, done):      
-        self.memory.append((state, action, reward, next_state, done))
+    def remember(self,important ,state, action, reward, next_state, done):    
+        if important:  
+            self.memory1.append((state, action, reward, next_state, done))
+        else:
+            self.memory2.append((state, action, reward, next_state, done))
 
-    def Train(self, episode):
-        if(agent.epsilon > agent.epsilon_min):
-            agent.epsilon = -1.5 * (episode / EPISODE) + 1.
-        minibatch = random.sample(self.memory, BATCH_SIZE)
+
+    def Train(self, episode): 
+        M1_batch = random.sample(self.memory1, int(BATCH_SIZE * (1- self.eta)))
+        M2_batch = random.sample(self.memory2, int(BATCH_SIZE * self.eta))
+        minibatch = M1_batch + M2_batch
+
         for state, action, reward, next_state, done in minibatch:
             target = reward
             if not done:
@@ -91,8 +78,16 @@ class DQNAgent(object):
             target_f = self.model.predict(state)
             target_f[0][action] = target
             self.model.fit(state, target_f, epochs=1, verbose=0)
-        # if self.epsilon > self.epsilon_min:
-        #     self.epsilon *= self.epsilon_decay
+
+        if(self.epsilon > self.epsilon_min):
+            self.epsilon = -1.5 * (episode / EPISODE) + 1.
+        if(self.eta > self.eta_min):
+            self.eta = -1.5 * (episode / EPISODE) + 1.
+
+
+        
+        
+        
 
 def DrawObjects(window, grid, size, row):
     distance = size // row
@@ -143,12 +138,11 @@ def Draw(window, clock, Grid):
     pygame.display.update()
 
 TRAINING = True
-BATCH_SIZE = 8
-EPISODE =1000
+BATCH_SIZE = 32
+EPISODE =10000
 SCREEN = True
 
 if __name__ == '__main__':
-    #m = load_model("Snake_model_manualsave_Furtest_trained")
     m = None
     agent = DQNAgent(0.999, model = m, epsilon = 1.)
     if SCREEN:
@@ -158,7 +152,7 @@ if __name__ == '__main__':
         clock = pygame.time.Clock()
     action_size = 4
     done = False
-
+    count= 0
     for episode in range(EPISODE):
         agent.game.resetfood()
         state = agent.game.generateGrid()
@@ -172,15 +166,18 @@ if __name__ == '__main__':
             if SCREEN:
                 Draw(window, clock, next_state)
             next_state = next_state.reshape(20,20,1)
-            agent.remember(state, action, reward, next_state, done)
+            if abs(reward) >= .5:
+                agent.remember(True, state,action, reward, next_state, done)
+            else:
+                agent.remember(False, state, action, reward, next_state, done)
             state = next_state
+            count += 1
             if done:
-                print("episode: {}/{}, score: {},  e: {:.2}"
-                    .format(episode, EPISODE, time,  agent.epsilon))
+                print(f"episode: {episode}/{EPISODE}, score: {time},  e: {agent.epsilon}, eta: {agent.eta}")
                 break
-            if len(agent.memory) > BATCH_SIZE:
+            if len(agent.memory1)  > BATCH_SIZE * .8 and  len(agent.memory2) > BATCH_SIZE* .8:
                 agent.Train(episode)
-        if(episode % 200 == 0 or episode == 999):
+        if((episode % 200 == 0 and episode != 0) or episode == 9999):
             agent.model.save(f"Snake_model_{episode}_dense" )
 
 
