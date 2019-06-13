@@ -23,7 +23,7 @@ session = tf.Session(config=config)
 
 class DQNAgent(object):
 
-    def __init__(self, epsilon_decay, model = None,epsilon=1.0, epsilon_min=.1, gamma =0.99):
+    def __init__(self, epsilon_decay, model = None,epsilon=1.0, epsilon_min=.5, gamma =0.99):
         self.game = Snake.Game(True)
         self.epsilon = epsilon
         self.epsilon_decay = epsilon_decay
@@ -32,7 +32,7 @@ class DQNAgent(object):
         self.model = self.build_model() if model == None else model
         self.memory1 = deque(maxlen=500000)
         self.memory2 = deque(maxlen = 500000)
-        self.eta = .9
+        self.eta = .8
         self.eta_min = .5
 
 
@@ -66,8 +66,8 @@ class DQNAgent(object):
 
 
     def Train(self, episode): 
-        M1_batch = random.sample(self.memory1, int(BATCH_SIZE * (1- self.eta)))
-        M2_batch = random.sample(self.memory2, int(BATCH_SIZE * self.eta))
+        M1_batch = random.sample(self.memory1, int(BATCH_SIZE *  self.eta))
+        M2_batch = random.sample(self.memory2, int(BATCH_SIZE * (1-self.et)))
         minibatch = M1_batch + M2_batch
 
         for state, action, reward, next_state, done in minibatch:
@@ -80,9 +80,9 @@ class DQNAgent(object):
             self.model.fit(state, target_f, epochs=1, verbose=0)
 
         if(self.epsilon > self.epsilon_min):
-            self.epsilon = -1.5 * (episode / EPISODE) + 1.
+            self.epsilon = -1.5 * (episode / EPISODE) + .5
         if(self.eta > self.eta_min):
-            self.eta = -1.5 * (episode / EPISODE) + 1.
+            self.eta = -1.5 * (episode / EPISODE) + .5
 
 
         
@@ -139,12 +139,12 @@ def Draw(window, clock, Grid):
 
 TRAINING = True
 BATCH_SIZE = 32
-EPISODE =10000
+EPISODE =5000
 SCREEN = True
 
 if __name__ == '__main__':
     m = None
-    agent = DQNAgent(0.999, model = m, epsilon = 1.)
+    agent = DQNAgent(0.999, model = m, epsilon = .5)
     if SCREEN:
         size = 800
         pygame.init()
@@ -177,7 +177,7 @@ if __name__ == '__main__':
                 break
             if len(agent.memory1)  > BATCH_SIZE * .8 and  len(agent.memory2) > BATCH_SIZE* .8:
                 agent.Train(episode)
-        if((episode % 200 == 0 and episode != 0) or episode == 9999):
+        if((episode % 200 == 0 and episode != 0) or episode == 4999):
             agent.model.save(f"Snake_model_{episode}_dense" )
 
 
