@@ -67,7 +67,7 @@ class DQNAgent(object):
 
     def Train(self, episode): 
         M1_batch = random.sample(self.memory1, int(BATCH_SIZE *  self.eta))
-        M2_batch = random.sample(self.memory2, int(BATCH_SIZE * (1-self.et)))
+        M2_batch = random.sample(self.memory2, int(BATCH_SIZE * (1-self.eta)))
         minibatch = M1_batch + M2_batch
 
         for state, action, reward, next_state, done in minibatch:
@@ -80,9 +80,9 @@ class DQNAgent(object):
             self.model.fit(state, target_f, epochs=1, verbose=0)
 
         if(self.epsilon > self.epsilon_min):
-            self.epsilon = -1.5 * (episode / EPISODE) + .5
+            self.epsilon = -1.5 * (episode / EPISODE) + 1.
         if(self.eta > self.eta_min):
-            self.eta = -1.5 * (episode / EPISODE) + .5
+            self.eta = -1.5 * (episode / EPISODE) + .8
 
 
         
@@ -144,7 +144,7 @@ SCREEN = True
 
 if __name__ == '__main__':
     m = None
-    agent = DQNAgent(0.999, model = m, epsilon = .5)
+    agent = DQNAgent(0.999, model = m, epsilon = 1.)
     if SCREEN:
         size = 800
         pygame.init()
