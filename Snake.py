@@ -8,7 +8,7 @@ import tensorflow as tf
 from keras.optimizers import Adam
 from keras.models import Sequential
 from keras.layers import Dense, Activation, Convolution2D, Flatten
-from math import sqrt
+from math import sqrt, log
 
 
 class cube(object):
@@ -185,8 +185,11 @@ class Game(object):
         newxdist = (food[0] - new[0]) * (food[0] - new[0])
         newydist = (food[1] - new[1]) * (food[1] - new[1])
         new_dist = sqrt(newxdist + newydist)
-
-        return 1 if old_dist > new_dist else -.5
+        S = len(self.snake.body)
+        formula = log( (S + old_dist)/ (S + new_dist), S)
+        if abs(formula) >= .5:
+            print(formula, new_dist, old_dist)
+        return formula
 
     def checkcollision(self, new_pos, old_pos, food): 
         for i in range(1, len(self.snake.body),1):
@@ -194,17 +197,18 @@ class Game(object):
                     print(f"Score: {len(self.snake.body) -3}")
                     #message_box("You lost!", "Play again..")
                     self.snake.reset(10,10)
-                    return -20, True
+                    return -1, True
         if(not IsWithin(self.snake.body[0].x, 0, self.rows -1) or not IsWithin(self.snake.body[0].y, 0, self.rows -1)):
             print(f"Score: {len(self.snake.body) -3}")
             #message_box("You lost!", "Play again..")
             self.snake.reset(10, 10)
-            return -20, True
+            return -1, True
         elif(self.snake.body[0].x == self.food.x and self.snake.body[0].y == self.food.y):
             self.snake.addCube()
             self.food = randomSnack(self.window,self.rows,self.snake)
-            return 20 , False
+            return 1 , False
         distance = self.CalcDistance(new_pos,old_pos,food)
+        
         return distance , False
 
 
