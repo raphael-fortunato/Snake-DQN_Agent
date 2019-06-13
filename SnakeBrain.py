@@ -121,7 +121,7 @@ def KeyEvent():
             keys = pygame.key.get_pressed()
             for key in keys:
                 if keys[pygame.K_s]:
-                    agent.model.save(f"Snake_model_manualsave_{tm.time()}" )
+                    agent.model.save(f"Snake_model_manualsave_{tm.time()}")
                     break
 
 
