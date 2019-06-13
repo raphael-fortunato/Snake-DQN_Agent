@@ -59,8 +59,11 @@ class DQNAgent(object):
         else: 
             return np.argmax(self.model.predict(state)[0])
 
-    def remember(self, state, action, reward, next_state, done):      
-        self.memory.append((state, action, reward, next_state, done))
+    def remember(self, important ,state, action, reward, next_state, done): 
+        if important:     
+            self.memory1.append((state, action, reward, next_state, done))
+        else:
+            self.memory2.append((state, action, reward, next_state, done))
 
     def Train(self, episode): 
         M1_batch = random.sample(self.memory1, int(BATCH_SIZE *  self.eta))
@@ -129,6 +132,20 @@ def Draw(window, clock, Grid):
     DrawObjects(window,Grid,size, row)
     pygame.display.update()
 
+def ReshapeArray(array):
+    new_grid = np.zeros(24,24)
+    for x in range(24):
+        for y in range(24):
+            if x < 2 or x > 22:
+                new_grid[x,y] = -1
+            if y < 2 or y > 22:
+                new_grid[x,y] = -1
+    for i in range(20):
+        for j in range(20):
+            new_grid[i + 2, j + 2] = array[i,j]
+    return new_grid
+
+
 TRAINING = True
 BATCH_SIZE = 32
 EPISODE =5000
@@ -151,13 +168,15 @@ if __name__ == '__main__':
             state = agent.game.generateGrid()
             if SCREEN:
                 Draw(window, clock, state)
-            state = state.reshape(-1,20,20,1)
+            ReshapeArray(state)
+            state = state.reshape(-1,24,24,1)
             for time in range(500):
                 action = agent.action(state)
                 next_state, reward, done = agent.game.nextstate(action)
                 if SCREEN:
                     Draw(window, clock, next_state)
-                next_state = next_state.reshape(-1,20,20,1)
+                ReshapeArray(next_state)
+                next_state = next_state.reshape(-1,24,24,1)
                 if abs(reward) >= .5:
                     agent.remember(True, state,action, reward, next_state, done)
                 else:
