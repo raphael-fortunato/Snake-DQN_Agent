@@ -70,14 +70,30 @@ class DQNAgent(object):
         M2_batch = random.sample(self.memory2, int(BATCH_SIZE * (1-self.eta)))
         minibatch = M1_batch + M2_batch
 
-        for state, action, reward, next_state, done in minibatch:
-            target = reward
-            if not done:
-                target = (reward + self.gamma * 
-                            np.amax(self.model.predict(next_state)[0]))
-            target_f = self.model.predict(state)
-            target_f[0][action] = target
-            self.model.fit(state, target_f, epochs=1, verbose=0)
+        s_batch = [data[0] for data in minibatch]
+        a_batch = [data[1] for data in minibatch]
+        r_batch = [data[2] for data in minibatch]
+        st1_batch = [data[3] for data in minibatch]
+        d_batch = [data[4] for data in minibatch]
+        q_batch = []
+        target_f = []
+        for j in range(len(minibatch)):
+            q_batch.append( r_batch[j] + (self.gamma * (1 - d_batch[j]) *np.amax(self.model.predict(st1_batch[j]))) )
+            target_f.append( self.model.predict(s_batch[j]))
+        for i in range(len(minibatch)):
+            target_f[i] [0][a_batch[i]] = q_batch[i]
+            self.model.fit(s_batch[i], target_f[i], epochs =1, verbose = 0)
+
+
+
+        # for state, action, reward, next_state, done in minibatch:
+        #     target = reward
+        #     if not done:
+        #         target = (reward + self.gamma * 
+        #                     np.amax(self.model.predict(next_state)[0]))
+        #     target_f = self.model.predict(state)
+        #     target_f[0][action] = target
+        #     self.model.fit(state, target_f, epochs=1, verbose=0)
 
         if(self.epsilon > self.epsilon_min):
             self.epsilon = -1.5 * (episode / EPISODE) + 1.
@@ -138,7 +154,7 @@ def Draw(window, clock, Grid):
     pygame.display.update()
 
 TRAINING = True
-BATCH_SIZE = 32
+BATCH_SIZE = 1000
 EPISODE =5000
 SCREEN = True
 
@@ -175,10 +191,14 @@ if __name__ == '__main__':
             if done:
                 print(f"episode: {episode}/{EPISODE}, score: {time},  e: {agent.epsilon}, eta: {agent.eta}")
                 break
-            if len(agent.memory1)  > BATCH_SIZE * .8 and  len(agent.memory2) > BATCH_SIZE* .8:
+            if len(agent.memory1)  > BATCH_SIZE * .8 and  len(agent.memory2) > BATCH_SIZE* .8 and count % 200 == 0:
+                print(f"***Training*** \n ***memory size: {len(agent.memory1)}, {len(agent.memory2)}***")
                 agent.Train(episode)
-        if((episode % 200 == 0 and episode != 0) or episode == 4999):
-            agent.model.save(f"Snake_model_{episode}_dense" )
+        if((episode % 500 == 0 and episode != 0) or episode == 4999):
+            try:
+                agent.model.save(f"Snake_model_{episode}_dense" )
+            except:
+                pass
 
 
 
