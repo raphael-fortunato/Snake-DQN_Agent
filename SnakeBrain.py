@@ -36,9 +36,9 @@ class DQNAgent(object):
 
     def build_model(self):
         model = Sequential()
-        model.add(Convolution2D(16, (3, 3),input_shape=(20,20,1) ))
+        model.add(Convolution2D(16, (3, 3),input_shape=(24,24,1), padding = 'same' ))
         model.add(Activation('relu'))
-        model.add(Convolution2D(32, (3, 3)))
+        model.add(Convolution2D(32, (3, 3), padding = 'same'))
         model.add(Activation('relu'))
 
         model.add(Flatten())
@@ -70,14 +70,23 @@ class DQNAgent(object):
         M2_batch = random.sample(self.memory2, int(BATCH_SIZE * (1-self.eta)))
         minibatch = M1_batch + M2_batch
 
-        for state, action, reward, next_state, done in minibatch:
-            target = reward
-            if not done:
-                target = (reward + self.gamma * 
-                            np.amax(self.model.predict(next_state)[0]))
-            target_f = self.model.predict(state)
-            target_f[0][action] = target
-            self.model.fit(state, target_f, epochs=1, verbose=0)
+        s_batch = [data[0] for data in minibatch]
+        a_batch = [data[1] for data in minibatch]
+        r_batch = [data[2] for data in minibatch]
+        st1_batch = [data[3] for data in minibatch]
+        d_batch = [data[4] for data in minibatch]
+        q_batch = []
+        target_f = []
+        for j in range(len(minibatch)):
+            q_batch.append( r_batch[j] + (self.gamma * (1 - d_batch[j]) *np.amax(self.model.predict(st1_batch[j]))) )
+            target_f.append( self.model.predict(s_batch[j]))
+
+        target_f[:] [0][a_batch[:]] = q_batch[:]
+        s_batch = np.array(s_batch)
+        target_f = np.array(target_f)
+        self.model.fit(s_batch, target_f, epochs =1, batch_size = BATCH_SIZE ,verbose = 0)
+
+
 
         if(self.epsilon > self.epsilon_min):
             self.epsilon = -1.5 * (episode / EPISODE) + 1.
@@ -133,7 +142,7 @@ def Draw(window, clock, Grid):
     pygame.display.update()
 
 def ReshapeArray(array):
-    new_grid = np.zeros(24,24)
+    new_grid = np.zeros((24,24))
     for x in range(24):
         for y in range(24):
             if x < 2 or x > 22:
@@ -147,7 +156,7 @@ def ReshapeArray(array):
 
 
 TRAINING = True
-BATCH_SIZE = 32
+BATCH_SIZE = 5
 EPISODE =5000
 SCREEN = True
 
@@ -162,34 +171,39 @@ if __name__ == '__main__':
             clock = pygame.time.Clock()
         action_size = 4
         done = False
-
+        count = 0
         for episode in range(EPISODE):
             agent.game.resetfood()
             state = agent.game.generateGrid()
             if SCREEN:
                 Draw(window, clock, state)
-            ReshapeArray(state)
+            state = ReshapeArray(state)
             state = state.reshape(-1,24,24,1)
             for time in range(500):
                 action = agent.action(state)
                 next_state, reward, done = agent.game.nextstate(action)
                 if SCREEN:
                     Draw(window, clock, next_state)
-                ReshapeArray(next_state)
+                next_state = ReshapeArray(next_state)
                 next_state = next_state.reshape(-1,24,24,1)
                 if abs(reward) >= .5:
                     agent.remember(True, state,action, reward, next_state, done)
                 else:
                     agent.remember(False, state, action, reward, next_state, done)
                 state = next_state
+                count += 1
                 if done:
                     print("episode: {}/{}, score: {},  e: {:.2}"
                         .format(episode, EPISODE, time,  agent.epsilon))
                     break
-                if len(agent.memory1)  > BATCH_SIZE * .8 and  len(agent.memory2) > BATCH_SIZE* .8:
+                if len(agent.memory1)  > BATCH_SIZE * .8 and  len(agent.memory2) > BATCH_SIZE* .8 and count % 20 == 0:
+                    print(f"***Training*** \n ***memory size: {len(agent.memory1)}, {len(agent.memory2)}***")
                     agent.Train(episode)
             if(episode % 200 == 0 or episode == 4999):
-                agent.model.save(f"Snake_model_{episode}" )
+                try:
+                    agent.model.save(f"Snake_model_{episode}_conv")
+                except:
+                    pass
 
 
 
