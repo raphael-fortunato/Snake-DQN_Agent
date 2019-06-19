@@ -22,13 +22,6 @@ class cube(object):
         self.y = y
         self.color = color
 
-    def move(self, dirnx, dirny):
-        pass
-
-    def Draw(self, window):
-        distance = self.w // self.rows
-        pygame.draw.rect(window, self.color, (self.x * distance, self.y * distance, distance, distance))
-
 
 class Snake(object):
     global body,dx, dy, tail
@@ -78,10 +71,6 @@ class Snake(object):
 
     def addCube(self):
         self.body.append(cube(self.tail.x, self.tail.y, color = (0,255,0)))
-
-    def Draw(self, window):
-        for i in self.body:
-            i.Draw(window)
 
 
     def MoveSnake(self):
