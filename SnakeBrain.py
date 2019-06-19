@@ -61,7 +61,6 @@ class DQNAgent(object):
         if random.random() <= self.epsilon and TRAINING:
             return random.randint(0,3)
         else: 
-            state = state.reshape(-1,24,24,1)
             return np.argmax(self.model.predict(state)[0])
 
     def remember(self, important ,state, action, reward, next_state, done): 
@@ -84,13 +83,15 @@ class DQNAgent(object):
         q_batch = []
         target_f = []
         for j in range(len(minibatch)):
-            q_batch.append( r_batch[j] + (self.gamma * (1 - d_batch[j]) *np.amax(self.model.predict(st1_batch[j]))) )
-            target_f.append(self.model.predict(s_batch[j]))
+            n_state = st1_batch[j].reshape(20,20,1)
+            state = s_batch[j].reshape(20,20,1)
+            q_batch.append( r_batch[j] + (self.gamma * (1 - d_batch[j]) *np.amax(self.model.predict(n_state))) )
+            target_f.append(self.model.predict(state))
             target_f[j] [0][a_batch[j]] = q_batch[j]
 
-        s_batch = np.array(s_batch).reshape( 20, 20, 1)
-        target_f = np.array(target_f)
-        self.model.fit(s_batch, target_f, epochs =1, batch_size = len(minibatch), verbose = 0)
+        s_batch = np.array(s_batch).reshape(20,20,4)
+        target_f = np.array(target_f).reshape(4,4)
+        self.model.fit(s_batch[0], target_f[0], epochs =1, batch_size = len(minibatch), verbose = 0)
 
         if(self.epsilon > self.epsilon_min):
             self.epsilon = -1.5 * (episode / EPISODE) + .1
