@@ -12,10 +12,9 @@ import Snake
 from collections import deque
 import time as tm
 
-
-config = tf.ConfigProto()
-config.gpu_options.allow_growth = True
-session = tf.Session(config=config)
+# config = tf.ConfigProto()
+# config.gpu_options.allow_growth = True
+# session = tf.Session(config=config)
 
 
 
@@ -35,12 +34,12 @@ class DQNAgent(object):
         self.eta = .8
         self.eta_min = .5
 
-
     def build_model(self):
         model = Sequential()
         model.add(Flatten())
         model.add(Dense(400))
         model.add(Activation('relu'))
+
 
         model.add(Dense(1024))
         model.add(Activation('relu'))
@@ -62,16 +61,17 @@ class DQNAgent(object):
         if random.random() <= self.epsilon and TRAINING:
             return random.randint(0,3)
         else: 
+            state = state.reshape(-1,24,24,1)
             return np.argmax(self.model.predict(state)[0])
 
-    def remember(self,important ,state, action, reward, next_state, done):    
-        if important:  
+    def remember(self, important ,state, action, reward, next_state, done): 
+        if important:     
             self.memory1.append((state, action, reward, next_state, done))
         else:
             self.memory2.append((state, action, reward, next_state, done))
 
 
-def Train(self, episode): 
+    def Train(self, episode): 
         M1_batch = random.sample(self.memory1, int(BATCH_SIZE *  self.eta))
         M2_batch = random.sample(self.memory2, int(BATCH_SIZE * (1-self.eta)))
         minibatch = M1_batch + M2_batch
@@ -84,15 +84,13 @@ def Train(self, episode):
         q_batch = []
         target_f = []
         for j in range(len(minibatch)):
-            n_state = st1_batch[j].reshape(-1, 24,24, 1)
-            state = s_batch[j].reshape(-1, 24,24, 1)
-            q_batch.append( r_batch[j] + (self.gamma * (1 - d_batch[j]) *np.amax(self.model.predict(n_state))) )
-            target_f.append( self.model.predict(state))
+            q_batch.append( r_batch[j] + (self.gamma * (1 - d_batch[j]) *np.amax(self.model.predict(st1_batch[j]))) )
+            target_f.append(self.model.predict(s_batch[j]))
             target_f[j] [0][a_batch[j]] = q_batch[j]
 
-        s_batch = np.array(s_batch)
-        target_f = np.array(target_f).reshape(len(minibatch),4)
-        self.model.fit(s_batch, target_f, epochs =3, batch_size = len(minibatch), verbose = 0)
+        s_batch = np.array(s_batch).reshape( 20, 20, 1)
+        target_f = np.array(target_f)
+        self.model.fit(s_batch, target_f, epochs =1, batch_size = len(minibatch), verbose = 0)
 
         if(self.epsilon > self.epsilon_min):
             self.epsilon = -1.5 * (episode / EPISODE) + .1
@@ -134,7 +132,7 @@ def KeyEvent():
             keys = pygame.key.get_pressed()
             for key in keys:
                 if keys[pygame.K_s]:
-                    agent.model.save(f"Snake_model_manualsave_{tm.time()}" )
+                    agent.model.save(f"Snake_model_manualsave_{tm.time()}")
                     break
 
 
@@ -148,9 +146,23 @@ def Draw(window, clock, Grid):
     DrawObjects(window,Grid,size, row)
     pygame.display.update()
 
+def ReshapeArray(array):
+    new_grid = np.zeros((24,24))
+    for x in range(24):
+        for y in range(24):
+            if x < 2 or x > 22:
+                new_grid[x,y] = -1
+            if y < 2 or y > 22:
+                new_grid[x,y] = -1
+    for i in range(20):
+        for j in range(20):
+            new_grid[i + 2, j + 2] = array[i,j]
+    return new_grid
+
+
 TRAINING = True
-BATCH_SIZE = 1000
-EPISODE =1000
+BATCH_SIZE = 5
+EPISODE =10000
 SCREEN = True
 
 if __name__ == '__main__':
@@ -164,10 +176,11 @@ if __name__ == '__main__':
     action_size = 4
     done = False
     count= 0
+    total_frames = 0
+    total_exp = 0
     for episode in range(EPISODE):
         agent.game.resetfood()
         state = agent.game.generateGrid()
-
         if SCREEN:
             Draw(window, clock, state)
         state = state.reshape(20,20,1) 
@@ -184,9 +197,13 @@ if __name__ == '__main__':
             state = next_state
             count += 1
             if done:
-                print(f"episode: {episode}/{EPISODE}, score: {time},  e: {agent.epsilon}, eta: {agent.eta}")
+                total_frames += time
+                print(f"episode: {episode}/{EPISODE}, total frames: {total_frames},  e: {agent.epsilon}, eta: {agent.eta}"
+                )
                 break
-            if len(agent.memory1)  > BATCH_SIZE * .8 and  len(agent.memory2) > BATCH_SIZE* .8 and count % 1000 == 0:
+            if len(agent.memory1)  > BATCH_SIZE * .8 and  len(agent.memory2) > BATCH_SIZE* .8 and count % 100 == 0:
+                total_exp += BATCH_SIZE
+                print(f"***Training*** \n ***memory size: {len(agent.memory1)}, {len(agent.memory2)}*** \n Total experiences replayed : {total_exp}")
                 agent.Train(episode)
         try:
             if((episode % 200 == 0 and episode != 0) or episode == 9999):
