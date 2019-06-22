@@ -175,9 +175,9 @@ class Game(object):
         newydist = (food[1] - new[1]) * (food[1] - new[1])
         new_dist = sqrt(newxdist + newydist)
         S = len(self.snake.body)
-        formula = log( (S + old_dist)/ (S + new_dist), S)
-        if abs(formula) >= .5:
-            print(formula, new_dist, old_dist)
+        new_d = 1 if new_dist <= old_dist else 2
+        old_d = 1 if old_dist < new_dist else 2
+        formula = log( (S + old_d)/ (S + new_d), S)
         return formula
 
     def checkcollision(self, new_pos, old_pos, food): 
