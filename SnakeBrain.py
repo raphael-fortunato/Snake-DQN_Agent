@@ -22,7 +22,7 @@ import CustomTensorBoard
 class DQNAgent(object):
 
     def __init__(self, epsilon_decay, model = None,epsilon=1.0, epsilon_min=.1, gamma =0.99):
-        self.game = Snake.Game(True)
+        self.game = Snake.Game(GRID_SIZE)
         self.epsilon = epsilon
         self.epsilon_decay = epsilon_decay
         self.epsilon_min = epsilon_min
@@ -33,12 +33,12 @@ class DQNAgent(object):
         self.memory1 = deque(maxlen=500000)
         self.memory2 = deque(maxlen = 500000)
         self.tensorboard = CustomTensorBoard.ModifiedTensorBoard(log_dir = f"logs\\{MODEL_NAME}-{int(tm.time())}")
-        self.eta = .5
+        self.eta = .6
         self.eta_min = .5
 
     def build_model(self):
         model = Sequential()
-        model.add(Dense(512, input_shape=(400, )))
+        model.add(Dense(512, input_shape=(INPUT_SIZE, )))
         model.add(Activation('relu'))
 
         model.add(Dense(1024))
@@ -54,8 +54,9 @@ class DQNAgent(object):
                         optimizer=adam)
         return model
 
-    def action(self, state):
-        if random.random() <= self.epsilon and TRAINING:
+    def action(self, state, step, average):
+        epsilon_step = self.epsilon * (1 + (step / (average+ 1)))
+        if random.random() <= min(epsilon_step, 1) and TRAINING:
             return random.randint(0,3)
         else: 
             return np.argmax(self.target_model.predict(state)[0])
@@ -80,18 +81,18 @@ class DQNAgent(object):
         q_batch = []
         target_f = []
         for j in range(len(minibatch)):
-            q_batch.append( r_batch[j] + (self.gamma * (1 - d_batch[j]) *np.amax(self.model.predict(st1_batch[j]))) )
+            q_batch.append( r_batch[j] + (self.gamma * (1 - d_batch[j]) *np.amax(self.target_model.predict(st1_batch[j]))) )
             target_f.append(self.model.predict(s_batch[j]))
             target_f[j] [0][a_batch[j]] = q_batch[j]
 
-        s_batch = np.array(s_batch).reshape(len(minibatch), 400)
+        s_batch = np.array(s_batch).reshape(len(minibatch), INPUT_SIZE)
         target_f = np.array(target_f).reshape(len(minibatch),4)
-        self.model.fit(s_batch, target_f, epochs =3, batch_size = len(minibatch), verbose = 0, callbacks = [self.tensorboard])
+        self.model.fit(s_batch, target_f, epochs = 1, batch_size = len(minibatch), verbose = 0, callbacks = [self.tensorboard])
 
         if(self.epsilon > self.epsilon_min):
-            self.epsilon = -.5 * (episode / EPISODE) + .5
+            self.epsilon = -(episode / EPISODE) + 1.
         if(self.eta > self.eta_min):
-            self.eta = -.4 * (episode / EPISODE) + .8
+            self.eta = -.4 * (episode / EPISODE) + .6
         if  episode % UPDATE_TARGET == 0:
             print("***update target model***")
             self.target_model.set_weights(self.model.get_weights())
@@ -136,29 +137,33 @@ def KeyEvent():
 
 
 def Draw(window, clock, Grid):
-    size = 800
-    row = 20
+    size = 40 * GRID_SIZE
+    row = GRID_SIZE
     KeyEvent()
-    pygame.time.delay(0)
+    pygame.time.delay(10)
     clock.tick(10)
     DrawWindow(window, size, row)
     DrawObjects(window,Grid,size, row)
     pygame.display.update()
 
 
-MODEL_NAME = "Dense-4l-512-1024-256-4"
+MODEL_NAME = "Dense-4l-512-1024-256-4-12x12G - sixth"
 TRAINING = False
-BATCH_SIZE = 10_000
-EPISODE =100_000
-UPDATE_TARGET = 5000
+BATCH_SIZE = 5_000
+EPISODE =150_000
+UPDATE_TARGET = 10_000
 SCREEN = True
+GRID_SIZE = 12
+INPUT_SIZE = GRID_SIZE * GRID_SIZE
+AGGREGATE_STATS_EVERY = 100
+
 
 if __name__ == '__main__':
-    m = load_model("C:\\Users\\Raphael Fortunato\\Documents\\Python\\Snake-DQN_Agent\\Snake_model_140000_dense")
+    m = load_model("C:\\Users\\Raphael Fortunato\\Documents\\Python\\Snake-DQN_Agent\\Snake_model_500000_dense-12x12G")
     #m = None
-    agent = DQNAgent(0.999, model = m, epsilon = .5)
+    agent = DQNAgent(0.999, model = m, epsilon = 1.)
     if SCREEN:
-        size = 800
+        size = 40 * GRID_SIZE
         pygame.init()
         window = pygame.display.set_mode((size, size))
         clock = pygame.time.Clock()
@@ -167,40 +172,53 @@ if __name__ == '__main__':
     count= 0
     total_frames = 0
     total_exp = 0
-    for episode in range(EPISODE):
-        agent.game.snake.reset(10,10)
+    ep_rewards = []
+    average_step = 0
+    for episode in range(EPISODE + 1):
+        agent.tensorboard.step = episode
+        episode_reward = 0
+        agent.game.snake.reset(GRID_SIZE //2,GRID_SIZE//2)
         agent.game.resetfood()
         state = agent.game.generateGrid()
         if SCREEN:
             Draw(window, clock, state)
-        state = state.reshape(1,400) 
+        state = state.reshape(1,INPUT_SIZE) 
         for time in range(500):
-            action = agent.action(state)
+            action = agent.action(state, time, average_step)
             next_state, reward, done = agent.game.nextstate(action)
             if SCREEN:
                 Draw(window, clock, next_state)
-            next_state = next_state.reshape(1, 400)
+            next_state = next_state.reshape(1, INPUT_SIZE)
             if abs(reward) >= .5:
                 agent.remember(True, state,action, reward, next_state, done)
             else:
                 agent.remember(False, state, action, reward, next_state, done)
             state = next_state
             count += 1
+            episode_reward += reward
             if done:
-                if time == 499:
-                    print("***Loop!***")
+                average_step = (average_step * episode + time)//(episode +1)
                 total_frames += time
                 print(f"episode: {episode}/{EPISODE}, total frames: {total_frames},  epsilon: {agent.epsilon}, eta: {agent.eta}"
                 )
+                ep_rewards.append(episode_reward)
+                
+                if not episode % AGGREGATE_STATS_EVERY or episode == 1:
+                    average_reward = sum(ep_rewards[-AGGREGATE_STATS_EVERY:])/len(ep_rewards[-AGGREGATE_STATS_EVERY:])
+                    min_reward = min(ep_rewards[-AGGREGATE_STATS_EVERY:])
+                    max_reward = max(ep_rewards[-AGGREGATE_STATS_EVERY:])
+                    agent.tensorboard.update_stats(reward_avg=average_reward, reward_min=min_reward, reward_max=max_reward,average_episode_length=time ,epsilon=agent.epsilon)
                 break
-        if  episode % 50 == 0 and episode != 0 and TRAINING:
+            if time == 499:
+                average_step = (average_step * episode + time)//(episode +1)
+        if  episode % 100 == 0 and episode != 0 and TRAINING:
             total_exp += min(BATCH_SIZE, len(agent.memory1))
             print(f"***Training*** \n ***memory size: {len(agent.memory1)}, {len(agent.memory2)}*** \
             \n Total experiences replayed : {total_exp}")
             agent.Train(episode)
         try:
-            if((episode % 5000 == 0 and episode != 0) or episode == 49999):
-                agent.model.save(f"Snake_model_{episode + 140_000}_dense" )
+            if((episode % 5000 == 0 and episode != 0)):
+                agent.model.save(f"Snake_model_{episode+ 390_000}_dense-12x12G" )
         except:
             pass
 

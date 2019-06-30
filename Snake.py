@@ -13,10 +13,6 @@ from math import sqrt, log
 
 class cube(object):
     global x,y
-    rows = 20
-    w = 800
-
-
     def __init__(self, x, y, color=(0,255,0)):
         self.x = x
         self.y = y
@@ -25,13 +21,15 @@ class cube(object):
 
 class Snake(object):
     global body,dx, dy, tail
-    def __init__(self, color, x, y):
+    def __init__(self, color, x, y, row):
         self.color = color
+        self.rows = row
         self.body = []
         self.InitSnake(3)
         self.tail = cube(self.body[-1].x,self.body[-1].y +1)
         self.dx = 0
         self.dy = -1
+        
 
     def MoveRight(self):
         if self.dx == -1:
@@ -59,7 +57,7 @@ class Snake(object):
 
     def InitSnake(self, start_size):
         for i in range(start_size):
-            self.body.append(cube(10, 10 +i))
+            self.body.append(cube(self.rows // 2, self.rows //2 +i))
 
 
     def reset(self, x, y):
@@ -83,24 +81,6 @@ class Snake(object):
         self.body[0].x += self.dx
         # for i,block in enumerate(self.body):
         #     print(f"block {i} location: {block.x} , {block.y}")
-
-def DrawGrid(window, size, rows):
-    sizebetween = size // rows
-    x = 0
-    y = 0
-
-    for l in range(rows):
-        x = x + sizebetween
-        y = y + sizebetween
-
-        pygame.draw.line(window, (255, 255, 255), (x, 0), (x, size))
-        pygame.draw.line(window, (255, 255, 255), (0, y), (size, y))
-
-
-def DrawWindow(window, size, rows):
-    window.fill((0,0,0))
-    DrawGrid(window, size, rows)
-    pygame.display.update()
 
 
 def randomSnack(window, rows, item):
@@ -133,21 +113,18 @@ def IsWithin(value, min, max):
 
 class Game(object):
 
-    def __init__(self, training):
-        global snake, food, rows, Training, window
-        if training: 
-            self.Training = training
-            self.size = 800
-            self.rows = 20
-            self.window = None
-            self.snake = Snake((0,255,0), 10,10)
-            self.food = randomSnack(self.window,self.rows, self.snake)
+    def __init__(self, row):
+        global snake, food, rows, window
+        self.rows = row
+        self.window = None
+        self.snake = Snake((0,255,0), row //2,row //2, self.rows)
+        self.food = randomSnack(self.window,self.rows, self.snake)
 
     def resetfood(self):
         self.food = randomSnack(self.window, self.rows, self.snake)
 
     def generateGrid(self):
-        grid = np.zeros((20,20))
+        grid = np.zeros((self.rows,self.rows))
         for c,i in reversed(list(enumerate(self.snake.body))):
             try:
                 if c == 0:
@@ -185,12 +162,12 @@ class Game(object):
             if(self.snake.body[0].x == self.snake.body[i].x and self.snake.body[0].y == self.snake.body[i].y):
                     print(f"Score: {len(self.snake.body) -3}")
                     #message_box("You lost!", "Play again..")
-                    self.snake.reset(10,10)
+                    self.snake.reset(self.rows //2,self.rows//2)
                     return -1, True
         if(not IsWithin(self.snake.body[0].x, 0, self.rows -1) or not IsWithin(self.snake.body[0].y, 0, self.rows -1)):
             print(f"Score: {len(self.snake.body) -3}")
             #message_box("You lost!", "Play again..")
-            self.snake.reset(10, 10)
+            self.snake.reset(self.rows //2,self.rows//2)
             return -1, True
         elif(self.snake.body[0].x == self.food.x and self.snake.body[0].y == self.food.y):
             self.snake.addCube()
@@ -213,13 +190,12 @@ class Game(object):
 
 
     def nextstate(self, action_index):
-        if self.Training:
-            old_pos_head  = (self.snake.body[0].x, self.snake.body[0].y)
-            pos_f = (self.food.x, self.food.y)
-            self.performrandomaction(action_index)
-            self.snake.MoveSnake()
-            grid = self.generateGrid()
-            new_pos_head  = (self.snake.body[0].x, self.snake.body[0].y)
-            reward, done = self.checkcollision(new_pos_head, old_pos_head, pos_f)
-            return grid, reward, done
+        old_pos_head  = (self.snake.body[0].x, self.snake.body[0].y)
+        pos_f = (self.food.x, self.food.y)
+        self.performrandomaction(action_index)
+        self.snake.MoveSnake()
+        grid = self.generateGrid()
+        new_pos_head  = (self.snake.body[0].x, self.snake.body[0].y)
+        reward, done = self.checkcollision(new_pos_head, old_pos_head, pos_f)
+        return grid, reward, done
 
