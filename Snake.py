@@ -8,37 +8,28 @@ import tensorflow as tf
 from keras.optimizers import Adam
 from keras.models import Sequential
 from keras.layers import Dense, Activation, Convolution2D, Flatten
-from math import sqrt, cos, degrees
+from math import sqrt, cos, degrees, log
 
 
 class cube(object):
     global x,y
-    rows = 20
-    w = 800
-
-
     def __init__(self, x, y, color=(0,255,0)):
         self.x = x
         self.y = y
         self.color = color
 
-    def move(self, dirnx, dirny):
-        pass
-
-    def Draw(self, window):
-        distance = self.w // self.rows
-        pygame.draw.rect(window, self.color, (self.x * distance, self.y * distance, distance, distance))
-
 
 class Snake(object):
     global body,dx, dy, tail
-    def __init__(self, color, x, y):
+    def __init__(self, color, x, y, row):
         self.color = color
+        self.rows = row
         self.body = []
         self.InitSnake(3)
         self.tail = cube(self.body[-1].x,self.body[-1].y +1)
         self.dx = 0
         self.dy = -1
+        
 
     def MoveRight(self):
         if self.dx == -1:
@@ -66,7 +57,7 @@ class Snake(object):
 
     def InitSnake(self, start_size):
         for i in range(start_size):
-            self.body.append(cube(10, 10 +i))
+            self.body.append(cube(self.rows // 2, self.rows //2 +i))
 
 
     def reset(self, x, y):
@@ -79,10 +70,6 @@ class Snake(object):
     def addCube(self):
         self.body.append(cube(self.tail.x, self.tail.y, color = (0,255,0)))
 
-    def Draw(self, window):
-        for i in self.body:
-            i.Draw(window)
-
 
     def MoveSnake(self):
         self.tail.x = self.body[-1].x
@@ -94,24 +81,6 @@ class Snake(object):
         self.body[0].x += self.dx
         # for i,block in enumerate(self.body):
         #     print(f"block {i} location: {block.x} , {block.y}")
-
-def DrawGrid(window, size, rows):
-    sizebetween = size // rows
-    x = 0
-    y = 0
-
-    for l in range(rows):
-        x = x + sizebetween
-        y = y + sizebetween
-
-        pygame.draw.line(window, (255, 255, 255), (x, 0), (x, size))
-        pygame.draw.line(window, (255, 255, 255), (0, y), (size, y))
-
-
-def DrawWindow(window, size, rows):
-    window.fill((0,0,0))
-    DrawGrid(window, size, rows)
-    pygame.display.update()
 
 
 def randomSnack(window, rows, item):
@@ -144,21 +113,18 @@ def IsWithin(value, min, max):
 
 class Game(object):
 
-    def __init__(self, training):
-        global snake, food, rows, Training, window
-        if training: 
-            self.Training = training
-            self.size = 800
-            self.rows = 20
-            self.window = None
-            self.snake = Snake((0,255,0), 10,10)
-            self.food = randomSnack(self.window,self.rows, self.snake)
+    def __init__(self, row):
+        global snake, food, rows, window
+        self.rows = row
+        self.window = None
+        self.snake = Snake((0,255,0), row //2,row //2, self.rows)
+        self.food = randomSnack(self.window,self.rows, self.snake)
 
     def resetfood(self):
         self.food = randomSnack(self.window, self.rows, self.snake)
 
     def generateGrid(self):
-        grid = np.zeros((20,20))
+        grid = np.zeros((self.rows,self.rows))
         for c,i in reversed(list(enumerate(self.snake.body))):
             try:
                 if c == 0:
@@ -210,8 +176,11 @@ class Game(object):
         newxdist = (food[0] - new[0]) * (food[0] - new[0])
         newydist = (food[1] - new[1]) * (food[1] - new[1])
         new_dist = sqrt(newxdist + newydist)
-
-        return 1 if old_dist > new_dist else -.5
+        S = len(self.snake.body)
+        new_d = 1 if new_dist <= old_dist else 2
+        old_d = 1 if old_dist < new_dist else 2
+        formula = log( (S + old_d)/ (S + new_d), S)
+        return formula
 
     def CalcFeatures(self):
         max_dist = self.CalcDistance(20,0,20,0)
@@ -240,27 +209,28 @@ class Game(object):
                     else self.CalcDistance(self.snake.body[0].x, list(filter(lambda x: x.x > self.snake.body[0].x, self.snake.body))[0].x, self.snake.body[0].y, self.snake.body[0].y )
         features =  [wall_up, wall_down, wall_left, wall_right, food_up, food_down, food_left, food_right, body_up, body_down, body_left, body_right]
         features = list(map(lambda x:self.MapValue(0,max_dist, 1, 0, x), features))
-        print(features)
+        #print(features)
         features = np.array(features)
-        return features.reshape(12, 1)
+        return features
 
     def checkcollision(self, new_pos, old_pos, food): 
         for i in range(1, len(self.snake.body),1):
             if(self.snake.body[0].x == self.snake.body[i].x and self.snake.body[0].y == self.snake.body[i].y):
                     print(f"Score: {len(self.snake.body) -3}")
                     #message_box("You lost!", "Play again..")
-                    self.snake.reset(10,10)
-                    return -20, True
+                    self.snake.reset(self.rows //2,self.rows//2)
+                    return -1, True
         if(not IsWithin(self.snake.body[0].x, 0, self.rows -1) or not IsWithin(self.snake.body[0].y, 0, self.rows -1)):
             print(f"Score: {len(self.snake.body) -3}")
             #message_box("You lost!", "Play again..")
-            self.snake.reset(10, 10)
-            return -20, True
+            self.snake.reset(self.rows //2,self.rows//2)
+            return -1, True
         elif(self.snake.body[0].x == self.food.x and self.snake.body[0].y == self.food.y):
             self.snake.addCube()
             self.food = randomSnack(self.window,self.rows,self.snake)
-            return 20 , False
+            return 1 , False
         distance = self.CalcDistancePos(new_pos,old_pos,food)
+        
         return distance , False
 
 
@@ -276,14 +246,12 @@ class Game(object):
 
 
     def nextstate(self, action_index):
-        if self.Training:
-            old_pos_head  = (self.snake.body[0].x, self.snake.body[0].y)
-            pos_f = (self.food.x, self.food.y)
-            self.performrandomaction(action_index)
-            self.snake.MoveSnake()
-            features = self.CalcFeatures()
-            new_pos_head  = (self.snake.body[0].x, self.snake.body[0].y)
-            reward, done = self.checkcollision(new_pos_head, old_pos_head, pos_f)
-            
-            return features, reward, done
+        old_pos_head  = (self.snake.body[0].x, self.snake.body[0].y)
+        pos_f = (self.food.x, self.food.y)
+        self.performrandomaction(action_index)
+        self.snake.MoveSnake()
+        features = self.CalcFeatures()
+        new_pos_head  = (self.snake.body[0].x, self.snake.body[0].y)
+        reward, done = self.checkcollision(new_pos_head, old_pos_head, pos_f)
+        return features, reward, done
 
