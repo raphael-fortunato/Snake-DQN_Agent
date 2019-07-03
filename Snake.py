@@ -83,7 +83,7 @@ class Snake(object):
         #     print(f"block {i} location: {block.x} , {block.y}")
 
 
-def randomSnack(window, rows, item):
+def randomSnack( rows, item):
     position = item.body
     while True:
         x = random.randrange(rows)
@@ -97,15 +97,46 @@ def randomSnack(window, rows, item):
     return food
 
 
-def message_box(subject, content):
-    root = tk.Tk()
-    root.attributes("-topmost", True)
-    root.withdraw()
-    messagebox.showinfo(subject, content)
-    try:
-        root.destroy()
-    except:
-        pass
+def DrawObjects(window, grid, size, row):
+    distance = size // row
+    for x in range(row):
+        for y in range(row):
+            if grid[x][y] == 1:
+                pygame.draw.rect(window, (0,255,0), (x * distance, y * distance, distance, distance))
+            elif grid[x][y] == 2:
+                pygame.draw.rect(window, (0,100,0), (x * distance, y * distance, distance, distance))
+            elif  grid[x][y] == 3:
+                pygame.draw.rect(window, (255,0,0), (x * distance, y * distance, distance, distance))
+
+def DrawGrid(window, size, rows):
+    sizebetween = size // rows
+    x = 0
+    y = 0
+    for l in range(rows):
+        x = x + sizebetween
+        y = y + sizebetween
+        pygame.draw.line(window, (255, 255, 255), (x, 0), (x, size))
+        pygame.draw.line(window, (255, 255, 255), (0, y), (size, y))
+
+def DrawWindow(window, size, rows):
+    window.fill((0,0,0))
+    #DrawGrid(window, size, rows)
+
+def KeyEvent():
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+
+def Draw(window, clock, Grid, grid_size):
+    size = 40 * grid_size
+    row = grid_size
+    KeyEvent()
+    #pygame.time.delay(10)
+    #clock.tick(10)
+    DrawWindow(window, size, row)
+    DrawObjects(window,Grid,size, row)
+    pygame.display.update()
+    return pygame.surfarray.array3d(window)
 
 def IsWithin(value, min, max):
     return value >= min and value <= max
@@ -113,15 +144,23 @@ def IsWithin(value, min, max):
 
 class Game(object):
 
-    def __init__(self, row):
+    def __init__(self, row, screen):
         global snake, food, rows, window
+        self.show = screen
         self.rows = row
         self.window = None
         self.snake = Snake((0,255,0), row //2,row //2, self.rows)
-        self.food = randomSnack(self.window,self.rows, self.snake)
+        self.food = randomSnack(self.rows, self.snake)
+        if self.show:
+            size = 40 * row
+            pygame.init()
+            self.window = pygame.display.set_mode((size, size))
+            self.clock = pygame.time.Clock()
+
+            
 
     def resetfood(self):
-        self.food = randomSnack(self.window, self.rows, self.snake)
+        self.food = randomSnack( self.rows, self.snake)
 
     def generateGrid(self):
         grid = np.zeros((self.rows,self.rows))
@@ -171,12 +210,16 @@ class Game(object):
             return -1, True
         elif(self.snake.body[0].x == self.food.x and self.snake.body[0].y == self.food.y):
             self.snake.addCube()
-            self.food = randomSnack(self.window,self.rows,self.snake)
+            self.food = randomSnack(self.rows,self.snake)
             return 1 , False
         distance = self.CalcDistance(new_pos,old_pos,food)
         
         return distance , False
 
+    def Init(self):
+        grid = self.generateGrid()
+        state = Draw(self.window, self.clock, grid, self.rows)
+        return state
 
     def performrandomaction(self, rand):
             if(rand ==0):
@@ -194,8 +237,10 @@ class Game(object):
         pos_f = (self.food.x, self.food.y)
         self.performrandomaction(action_index)
         self.snake.MoveSnake()
-        grid = self.generateGrid()
+        if self.show:
+            grid = self.generateGrid()
+            state = Draw(self.window, self.clock, grid, self.rows)
         new_pos_head  = (self.snake.body[0].x, self.snake.body[0].y)
         reward, done = self.checkcollision(new_pos_head, old_pos_head, pos_f)
-        return grid, reward, done
+        return state, reward, done
 
