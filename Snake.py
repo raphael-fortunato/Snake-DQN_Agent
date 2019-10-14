@@ -9,6 +9,9 @@ from keras.optimizers import Adam
 from keras.models import Sequential
 from keras.layers import Dense, Activation, Convolution2D, Flatten
 from math import sqrt, log
+import matplotlib.pyplot as plt
+import cv2 
+import pdb
 
 
 class cube(object):
@@ -181,6 +184,29 @@ class Game(object):
             #is food
         grid[self.food.x][self.food.y] = 3
         return grid
+
+    def GenerateImage(self):
+
+        image = np.zeros((80,80))
+        for c,i in reversed(list(enumerate(self.snake.body))):
+            try:
+                if c == 0:
+                    #2 is head
+                    if i.x == -1 or i.y == -1:
+                        pass
+                    else:
+                        image[i.x * 4:i.x * 4 +4 ][i.y *4: i.y * 4 +4 ] = 150
+                else:
+                    #1 is body
+                    image[i.x * 4:i.x * 4 +4 ][i.y *4: i.y * 4 +4 ]  = 100
+            except:
+                image[self.food.x * 4: self.food.x * 4 + 4][self.food.y * 4: self.food.y * 4 + 4] = 255
+                return image
+            #is food
+        image[self.food.x * 4: self.food.x * 4 + 4][self.food.y * 4: self.food.y * 4 + 4] = 255
+        pdb.set_trace()
+        cv2.imwrite('C:\\Users\\Raphael Fortunato\\Documents\\Python\\Snake-DQN_Agent\\snake.png', image)
+        return image
 
     def CalcDistance(self, new, old, food):
         oldxdist = (food[0] - old[0]) * (food[0] - old[0])
