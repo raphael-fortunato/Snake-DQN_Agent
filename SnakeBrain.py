@@ -13,7 +13,7 @@ from collections import deque
 import time as tm
 import CustomTensorBoard
 import cv2
-
+import pdb
 
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
@@ -124,7 +124,7 @@ AGGREGATE_STATS_EVERY = 100
 
 
 if __name__ == '__main__':
-    #m = load_model("C:\\Users\\Raphael Fortunato\\Documents\\Python\\Snake-DQN_Agent\\Snake_model_500000_dense-12x12G")
+    #m = load_model("C:\\Users\\Raphael Fortunato\\Documents\\Python\\Snake-DQN_Agent\\colab\\episode200_000")
     m = None
     agent = DQNAgent(0.999, model = m, epsilon = 1.)
     action_size = 4
@@ -145,6 +145,8 @@ if __name__ == '__main__':
             action = agent.action(state, time, average_step)
             next_state, reward, done = agent.game.nextstate(action)
             next_state = Preprocess(next_state)
+            pdb.set_trace()
+            agent.game.GenerateImage()
             if abs(reward) >= .5:
                 agent.remember(True, state,action, reward, next_state, done)
             else:
