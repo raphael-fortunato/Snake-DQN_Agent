@@ -1,8 +1,6 @@
 import random
 import pygame
 pygame.init()
-import tkinter as tk
-from tkinter import messagebox
 import numpy as np
 import tensorflow as tf
 from keras.optimizers import Adam

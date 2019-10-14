@@ -13,6 +13,7 @@ from collections import deque
 import time as tm
 import CustomTensorBoard
 import cv2
+from matplotlib import pyplot
 
 # config = tf.ConfigProto()
 # config.gpu_options.allow_growth = True
@@ -66,9 +67,9 @@ class DQNAgent(object):
                         optimizer=adam)
         return combined_model
 
-    def action(self, state, step, average):
-        epsilon_step = self.epsilon * (1 + (step / (average+ 1)))
-        if random.random() <= min(epsilon_step, 1) and TRAINING:
+    def action(self, state):
+        #epsilon_step = self.epsilon * (1 + (step / (average+ 1)))
+        if random.random() <= self.epsilon and TRAINING:
             return random.randint(0,3)
         else: 
             return np.argmax(self.target_model.predict(state)[0])
@@ -78,6 +79,13 @@ class DQNAgent(object):
             self.memory1.append((feature_state, array_state, action, reward, feature_next_state, array_next_state, done))
         else:
             self.memory2.append((feature_state, array_state, action, reward, feature_next_state, array_next_state, done))
+
+    def penelize_memory(self, penelize ,deque_list):
+        deque_list =np.array(deque_list)
+        if penelize:
+            for i, c in enumerate(deque_list):
+                deque_list[i][3] -= .1
+        self.memory2 += deque(deque_list)
 
 
     def Train(self, episode): 
@@ -150,22 +158,24 @@ def KeyEvent():
                     agent.model.save(f"Snake_model_manualsave_{tm.time()}")
                     break
 
-def DrawFeatures(window, grid, size, features):
+def DrawFeatures(window, grid, size, features, timestep):
     pygame.font.init() 
     myfont = pygame.font.SysFont('Comic Sans MS', 30)
     for i, feature in enumerate(features):
         text = myfont.render(str(feature), False, (250,250,250))
         window.blit(text,(20,10 + i * 30))
+    text = myfont.render(str(timestep), False,(250,250,250))
+    window.blit(text,(20,160))
 
-def Draw(window, clock, Grid, feature):
+def Draw(window, clock, Grid, feature, timestep):
     size = 40 * GRID_SIZE
     row = GRID_SIZE
     KeyEvent()
-    pygame.time.delay(2000)
+    pygame.time.delay(50)
     clock.tick(10)
     DrawWindow(window, size, row)
     DrawObjects(window,Grid,size, row)
-    DrawFeatures(window, Grid, size, feature)
+    DrawFeatures(window, Grid, size, feature, timestep)
     pygame.display.update()
 
 
@@ -181,7 +191,7 @@ AGGREGATE_STATS_EVERY = 100
 
 
 if __name__ == '__main__':
-    m = load_model("C:\\Users\\Raphael Fortunato\\Documents\\Python\\Snake-DQN_Agent\\Snake_model_1050000_double_NN-12x12G")
+    m = load_model("C:\\Users\\Raphael Fortunato\\Documents\\Python\\Snake-DQN_Agent\\Colab\\episode200_000")
     #m = None
     agent = DQNAgent(0.999, model = m, epsilon = 1.)
     if SCREEN:
@@ -196,6 +206,7 @@ if __name__ == '__main__':
     total_exp = 0
     ep_rewards = []
     average_step = 0
+    temp_memory = []
     for episode in range(EPISODE + 1):
         agent.tensorboard.step = episode
         episode_reward = 0
@@ -203,25 +214,37 @@ if __name__ == '__main__':
         agent.game.resetfood()
         feature_state, array_state = agent.game.get_features() , agent.game.generateGrid()
         if SCREEN:
-            Draw(window, clock, array_state, feature_state)
+            Draw(window, clock, array_state, feature_state, 0)
         feature_state, array_state = feature_state.reshape(1,INPUT_SIZE), array_state.reshape(1,144)
-        for time in range(500):
-            action = agent.action([feature_state, array_state], time, average_step)
+        timestep = 30
+        skip_memory = 0
+        while timestep >= 0:
+            action = agent.action([feature_state, array_state])
             feature_next_state, array_next_state, reward, done = agent.game.nextstate(action)
             if SCREEN:
-                Draw(window, clock, agent.game.generateGrid(), feature_next_state)
+                Draw(window, clock, agent.game.generateGrid(), feature_next_state, timestep)
             feature_next_state, array_next_state = feature_next_state.reshape(1, INPUT_SIZE), array_next_state.reshape(1,144)
-            if abs(reward) >= .5:
+            if abs(reward) >= .5 and skip_memory == 0:
                 agent.remember(True, feature_state, array_state, action, reward, feature_next_state, array_next_state, done)
-            else:
-                agent.remember(False, feature_state, array_state, action, reward, feature_next_state, array_next_state, done)
+                agent.penelize_memory(False, temp_memory)
+                temp_memory.clear()
+                timestep = int(2 * len(agent.game.snake.body) + 30)
+                skip_memory =2
+            elif skip_memory == 0:
+                temp_memory.append((feature_state, array_state, action, reward, feature_next_state, array_next_state, done))
             feature_state, array_state = feature_next_state, array_next_state
             count += 1
             episode_reward += reward
-            if done:
-                average_step = (average_step * episode + time)//(episode +1)
-                total_frames += time
-                print(f"episode: {episode}/{EPISODE}, total frames: {total_frames},  epsilon: {agent.epsilon}, eta: {agent.eta}"
+            timestep -= 1
+            skip_memory = skip_memory -1 if skip_memory > 0 else 0
+            if done or timestep == 0:
+                if timestep == 0:
+                    #average_step = (average_step * episode + time)//(episode +1)
+                    print("bad memories")
+                    agent.penelize_memory(True, temp_memory)
+                    temp_memory.clear()
+                #average_step = (average_step * episode + time)//(episode +1)
+                print(f"episode: {episode}/{EPISODE},  epsilon: {agent.epsilon}, eta: {agent.eta}"
                 )
                 ep_rewards.append(episode_reward)
                 
@@ -229,10 +252,9 @@ if __name__ == '__main__':
                     average_reward = sum(ep_rewards[-AGGREGATE_STATS_EVERY:])/len(ep_rewards[-AGGREGATE_STATS_EVERY:])
                     min_reward = min(ep_rewards[-AGGREGATE_STATS_EVERY:])
                     max_reward = max(ep_rewards[-AGGREGATE_STATS_EVERY:])
-                    agent.tensorboard.update_stats(reward_avg=average_reward, reward_min=min_reward, reward_max=max_reward,average_episode_length=time ,epsilon=agent.epsilon)
+                    
+                    agent.tensorboard.update_stats(reward_avg=average_reward, reward_min=min_reward, reward_max=max_reward ,epsilon=agent.epsilon)
                 break
-            if time == 499:
-                average_step = (average_step * episode + time)//(episode +1)
         if  episode % 100 == 0 and episode != 0 and TRAINING:
             total_exp += min(BATCH_SIZE, len(agent.memory1))
             print(f"***Training*** \n ***memory size: {len(agent.memory1)}, {len(agent.memory2)}*** \
