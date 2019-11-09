@@ -1,16 +1,12 @@
 import random
 import pygame
 pygame.init()
-import tkinter as tk
-from tkinter import messagebox
 import numpy as np
 import tensorflow as tf
 from keras.optimizers import Adam
 from keras.models import Sequential
 from keras.layers import Dense, Activation, Convolution2D, Flatten
 from math import sqrt, log
-import matplotlib.pyplot as plt
-import cv2 
 import pdb
 
 
@@ -104,11 +100,11 @@ def DrawObjects(window, grid, size, row):
     distance = size // row
     for x in range(row):
         for y in range(row):
-            if grid[x][y] == 1:
+            if grid[x][y] == 100:
                 pygame.draw.rect(window, (0,255,0), (x * distance, y * distance, distance, distance))
-            elif grid[x][y] == 2:
+            elif grid[x][y] == 150:
                 pygame.draw.rect(window, (0,100,0), (x * distance, y * distance, distance, distance))
-            elif  grid[x][y] == 3:
+            elif  grid[x][y] == 255:
                 pygame.draw.rect(window, (255,0,0), (x * distance, y * distance, distance, distance))
 
 def DrawGrid(window, size, rows):
@@ -121,9 +117,11 @@ def DrawGrid(window, size, rows):
         pygame.draw.line(window, (255, 255, 255), (x, 0), (x, size))
         pygame.draw.line(window, (255, 255, 255), (0, y), (size, y))
 
-def DrawWindow(window, size, rows):
+def DrawWindow(window, size, rows, grid):
     window.fill((0,0,0))
-    #DrawGrid(window, size, rows)
+    DrawGrid(window, size, rows)
+    DrawObjects(window,grid,size, rows)
+    pygame.display.update()
 
 def KeyEvent():
         for event in pygame.event.get():
@@ -131,15 +129,15 @@ def KeyEvent():
                 pygame.quit()
 
 def Draw(window, clock, Grid, grid_size):
+
     size = 40 * grid_size
     row = grid_size
     KeyEvent()
-    #pygame.time.delay(10)
-    #clock.tick(10)
-    DrawWindow(window, size, row)
-    DrawObjects(window,Grid,size, row)
-    pygame.display.update()
-    return pygame.surfarray.array3d(window)
+    clock.tick(10)
+    pygame.time.delay(10)
+    DrawWindow(window, size, row, Grid)
+    
+    
 
 def IsWithin(value, min, max):
     return value >= min and value <= max
@@ -174,38 +172,20 @@ class Game(object):
                     if i.x == -1 or i.y == -1:
                         pass
                     else:
-                        grid[i.x][i.y] = 2
+                        grid[i.x][i.y] = 150
                 else:
                     #1 is body
-                    grid[i.x][i.y] = 1
+                    grid[i.x][i.y] = 100
             except:
                 grid[self.food.x][self.food.y] = 3
                 return grid
             #is food
-        grid[self.food.x][self.food.y] = 3
+        grid[self.food.x][self.food.y] = 255
         return grid
 
     def GenerateImage(self):
-
-        image = np.zeros((80,80))
-        for c,i in reversed(list(enumerate(self.snake.body))):
-            try:
-                if c == 0:
-                    #2 is head
-                    if i.x == -1 or i.y == -1:
-                        pass
-                    else:
-                        image[i.x * 4:i.x * 4 +4 ][i.y *4: i.y * 4 +4 ] = 150
-                else:
-                    #1 is body
-                    image[i.x * 4:i.x * 4 +4 ][i.y *4: i.y * 4 +4 ]  = 100
-            except:
-                image[self.food.x * 4: self.food.x * 4 + 4][self.food.y * 4: self.food.y * 4 + 4] = 255
-                return image
-            #is food
-        image[self.food.x * 4: self.food.x * 4 + 4][self.food.y * 4: self.food.y * 4 + 4] = 255
-        pdb.set_trace()
-        cv2.imwrite('C:\\Users\\Raphael Fortunato\\Documents\\Python\\Snake-DQN_Agent\\snake.png', image)
+        image = self.generateGrid()
+        image = np.kron(image, np.ones((5,5)))
         return image
 
     def CalcDistance(self, new, old, food):
@@ -242,10 +222,7 @@ class Game(object):
         
         return distance , False
 
-    def Init(self):
-        grid = self.generateGrid()
-        state = Draw(self.window, self.clock, grid, self.rows)
-        return state
+
 
     def performrandomaction(self, rand):
             if(rand ==0):
@@ -263,10 +240,11 @@ class Game(object):
         pos_f = (self.food.x, self.food.y)
         self.performrandomaction(action_index)
         self.snake.MoveSnake()
+        grid = self.GenerateImage()
         if self.show:
-            grid = self.generateGrid()
-            state = Draw(self.window, self.clock, grid, self.rows)
+            #pdb.set_trace()
+            state = Draw(self.window, self.clock, self.generateGrid(), self.rows)
         new_pos_head  = (self.snake.body[0].x, self.snake.body[0].y)
         reward, done = self.checkcollision(new_pos_head, old_pos_head, pos_f)
-        return state, reward, done
+        return grid, reward, done
 
